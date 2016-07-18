@@ -29,26 +29,29 @@
 
 (def logger (agent 0))
 
-(defn log-response [url {:keys [request-time status]} i]
-  (let [msg (format "%d\t%s\t%d\t%dms\n" i url status request-time)]
-    (spit @logfile msg))
-  (inc i))
+(defn log-response [url {:keys [request-time status] :as response} i]
+  (if response
+    (do
+      (let [msg (format "%d\t%s\t%d\t%dms\n" i url status request-time)]
+        (spit @logfile msg))
+      (inc i))
+    i))
 
 (defn hit-url!
   "Request a URL and register the socket to receive a response."
   [url]
   (try
-    (d/catch Exception #(println "Exception in aleph manifold execution: " %)
-      (d/chain
+    (d/chain
+      (d/catch Exception #(println "Exception in aleph manifold execution: " %)
         (http/get
           url
           {:pool static-client-connection-pool
            :pool-timeout 10000
            :throw-exceptions false
            :connection-timeout 10000
-           :request-timeout 60000})
-        (fn [response]
-          (send logger (partial log-response url response)))))
+           :request-timeout 60000}))
+      (fn [response]
+        (send logger (partial log-response url response))))
     (catch Exception e
       (printf "Exception during hit-url call: %s\n" e))))
 
